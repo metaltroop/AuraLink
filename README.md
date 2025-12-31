@@ -1,4 +1,4 @@
-# AuraLink 🎧
+    # AuraLink 🎧
 
 **AuraLink** is a local-only, privacy-focused Android application designed to announce incoming caller names through your Bluetooth headset. Never take your phone out of your pocket again while driving or working.
 

@@ -9,9 +9,19 @@ class TTSManager(context: Context) : TextToSpeech.OnInitListener {
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
+    private var onCompletion: (() -> Unit)? = null
 
     init {
         tts = TextToSpeech(context, this)
+        tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) {
+                onCompletion?.invoke()
+            }
+            override fun onError(utteranceId: String?) {
+                onCompletion?.invoke()
+            }
+        })
     }
 
     override fun onInit(status: Int) {
@@ -25,6 +35,10 @@ class TTSManager(context: Context) : TextToSpeech.OnInitListener {
         } else {
             Log.e("TTSManager", "Initialization failed")
         }
+    }
+
+    fun setCompletionListener(listener: () -> Unit) {
+        this.onCompletion = listener
     }
 
     fun speak(text: String) {

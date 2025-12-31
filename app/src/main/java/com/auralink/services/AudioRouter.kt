@@ -9,6 +9,8 @@ class AudioRouter(context: Context) {
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
+    private var originalRingtoneVolume: Int = -1
+
     fun enableBluetoothSCO() {
         if (!isBluetoothHeadsetConnected()) return
 
@@ -21,6 +23,24 @@ class AudioRouter(context: Context) {
         audioManager.isBluetoothScoOn = false
         audioManager.stopBluetoothSco()
         audioManager.mode = AudioManager.MODE_NORMAL
+    }
+
+    /**
+     * Lowers ringtone volume to minimum (1) to prevent interference with announcement
+     */
+    fun muteRingtone() {
+        originalRingtoneVolume = audioManager.getStreamVolume(AudioManager.STREAM_RING)
+        audioManager.setStreamVolume(AudioManager.STREAM_RING, 1, 0)
+    }
+
+    /**
+     * Restores ringtone volume to its original level
+     */
+    fun restoreRingtone() {
+        if (originalRingtoneVolume != -1) {
+            audioManager.setStreamVolume(AudioManager.STREAM_RING, originalRingtoneVolume, 0)
+            originalRingtoneVolume = -1
+        }
     }
 
     fun isBluetoothHeadsetConnected(): Boolean {

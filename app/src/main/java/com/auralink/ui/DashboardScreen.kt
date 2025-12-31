@@ -1,5 +1,7 @@
 package com.auralink.ui
 
+import android.app.Activity
+import android.app.role.RoleManager
 import android.service.quicksettings.Tile
 import androidx.compose.ui.tooling.preview.Preview
 import com.auralink.ui.theme.AuralinkTheme
@@ -54,7 +56,34 @@ fun DashboardScreen() {
     val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     val adapter = bluetoothManager.adapter
     val pairedDevices = remember { adapter?.bondedDevices?.toList() ?: emptyList() }
-    
+
+    // Role Status State
+    var isRoleHeld by remember {
+        mutableStateOf(
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                val roleManager = context.getSystemService(android.app.role.RoleManager::class.java)
+                roleManager.isRoleHeld(android.app.role.RoleManager.ROLE_CALL_SCREENING)
+            } else true
+        )
+    }
+
+    // Refresh role status when app is resumed (e.g., coming back from Role request dialog)
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    val roleManager = context.getSystemService(android.app.role.RoleManager::class.java)
+                    isRoleHeld = roleManager.isRoleHeld(android.app.role.RoleManager.ROLE_CALL_SCREENING)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     // logic to find connected device would ideally come from AudioRouter or BluetoothProfile
     // forcing a simple check for MVP visual
     val connectedDeviceName = "Bluetooth Headset (Active)" // Real impl would use AudioRouter.getConnectedDeviceName()
@@ -64,6 +93,46 @@ fun DashboardScreen() {
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        // Role Status Card (Play Store Compliance)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && !isRoleHeld) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(text = "Play Store Compliance", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Call Screening role is required to identify callers safely.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            val roleManager = context.getSystemService(android.app.role.RoleManager::class.java)
+                            val intent = roleManager.createRequestRoleIntent(android.app.role.RoleManager.ROLE_CALL_SCREENING)
+                            // We need to trigger this via Activity. I'll use a hack or assume context is Activity for MVP
+                            (context as? android.app.Activity)?.startActivityForResult(intent, 1001)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Grant Role")
+                    }
+                }
+            }
+        } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "🛡️ Call Screening Active", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+
         // Service Status Card
         Card(
             colors = CardDefaults.cardColors(

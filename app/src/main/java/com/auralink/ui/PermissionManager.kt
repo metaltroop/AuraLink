@@ -21,8 +21,7 @@ class PermissionManager(private val context: Context) {
     fun getRequiredPermissions(): Array<String> {
         val permissions = mutableListOf(
             Manifest.permission.READ_CONTACTS,
-            Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.READ_CALL_LOG
+            Manifest.permission.READ_PHONE_STATE
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions.add(Manifest.permission.BLUETOOTH_CONNECT)

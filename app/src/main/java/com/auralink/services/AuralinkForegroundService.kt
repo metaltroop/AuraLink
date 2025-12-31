@@ -38,6 +38,13 @@ class AuralinkForegroundService : Service(), CoroutineScope {
         audioRouter = AudioRouter(this)
         contactRepository = ContactRepository(this)
         createNotificationChannel()
+
+        // Setup completion listener for ringtone restoration
+        ttsManager.setCompletionListener {
+            android.util.Log.d("AuralinkService", "Announcement done. Restoring audio.")
+            audioRouter.restoreRingtone()
+            audioRouter.disableBluetoothSCO()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -81,7 +88,6 @@ class AuralinkForegroundService : Service(), CoroutineScope {
                 android.util.Log.d("AuralinkService", "Driving Mode Expired. Disabling.")
                 effectiveDrivingMode = false
                 sharedPrefs.edit().putBoolean("DRIVING_MODE", false).apply()
-                // Ideally we also update the Tile, but TileService logic updates on click/listening.
             }
         }
 
@@ -101,24 +107,24 @@ class AuralinkForegroundService : Service(), CoroutineScope {
 
         launch {
             val name = contactRepository.getContactName(phoneNumber)
+            
+            // Audio Prep: Mute ringtone and enable SCO
+            audioRouter.muteRingtone()
+            audioRouter.enableBluetoothSCO()
+            
+            // Provide a small delay for SCO to connect (hardware dependent)
+            delay(1200) 
             announceCaller(name)
         }
     }
 
     private fun announceCaller(name: String) {
-        audioRouter.enableBluetoothSCO()
-        // Provide a small delay for SCO to connect
-        launch(Dispatchers.IO) {
-            Thread.sleep(1000)
-            withContext(Dispatchers.Main) {
-                ttsManager.speak("Incoming call from $name")
-            }
-            Thread.sleep(4000) 
-            // Cleanup after announcement
-            withContext(Dispatchers.Main) {
-                // Optional: Just let call take over, or disable SCO if desired to revert to ringtone
-                // audioRouter.disableBluetoothSCO() 
-            }
+        val sharedPrefs = getSharedPreferences("AuralinkPrefs", Context.MODE_PRIVATE)
+        val delayMs = sharedPrefs.getLong("ANNOUNCEMENT_DELAY", 1000L)
+        
+        launch {
+            delay(delayMs)
+            ttsManager.speak("Incoming call from $name")
         }
     }
 
