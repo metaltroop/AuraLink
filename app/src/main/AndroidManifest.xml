@@ -15,9 +15,9 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@drawable/app_logo"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/ic_launcher_round"
+        android:roundIcon="@drawable/app_logo"
         android:supportsRtl="true"
         android:theme="@style/Theme.Auralink"
         tools:targetApi="34">
@@ -64,7 +64,7 @@
         <!-- Always Active Tile Service -->
         <service
             android:name=".services.AlwaysActiveTileService"
-            android:icon="@android:drawable/ic_menu_always_landscape_portrait"
+            android:icon="@drawable/app_logo"
             android:label="Always Announce"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">

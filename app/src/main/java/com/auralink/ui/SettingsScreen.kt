@@ -1,5 +1,9 @@
 package com.auralink.ui
 
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.auralink.ui.theme.AuralinkTheme
+
 import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -69,5 +73,13 @@ fun SettingsScreen() {
             valueRange = 15f..120f,
             steps = 6 // 15, 30, 45, 60, 75, 90, 105, 120 approx steps
         )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun SettingsPreview() {
+    AuralinkTheme {
+        SettingsScreen()
     }
 }

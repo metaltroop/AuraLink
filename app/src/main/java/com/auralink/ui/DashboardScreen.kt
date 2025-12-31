@@ -1,5 +1,9 @@
 package com.auralink.ui
 
+import android.service.quicksettings.Tile
+import androidx.compose.ui.tooling.preview.Preview
+import com.auralink.ui.theme.AuralinkTheme
+
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothManager
 import android.content.Context
@@ -145,5 +149,13 @@ fun DashboardScreen() {
                 }
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun DashboardPreview() {
+    AuralinkTheme {
+        DashboardScreen()
     }
 }
