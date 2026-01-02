@@ -70,6 +70,17 @@
             </intent-filter>
         </service>
 
+        <!-- Notification Whisperer Service -->
+        <service
+            android:name=".services.AuraNotificationListenerService"
+            android:label="AuraLink Notification Reader"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Always Active Tile Service -->
         <service
             android:name=".services.AlwaysActiveTileService"

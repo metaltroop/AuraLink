@@ -25,6 +25,7 @@ import com.auralink.services.AuralinkForegroundService
 @Composable
 fun DashboardScreen() {
     val context = LocalContext.current
+    val isPreview = androidx.compose.ui.platform.LocalInspectionMode.current
     val sharedPrefs = remember { context.getSharedPreferences("AuralinkPrefs", Context.MODE_PRIVATE) }
     
 
@@ -53,34 +54,49 @@ fun DashboardScreen() {
     } 
 
     
-    val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-    val adapter = bluetoothManager.adapter
+    val bluetoothManager = if (!isPreview) context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager else null
+    val adapter = bluetoothManager?.adapter
     val pairedDevices = remember { adapter?.bondedDevices?.toList() ?: emptyList() }
 
     // Role Status State
     var isRoleHeld by remember {
         mutableStateOf(
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && !isPreview) {
                 val roleManager = context.getSystemService(android.app.role.RoleManager::class.java)
-                roleManager.isRoleHeld(android.app.role.RoleManager.ROLE_CALL_SCREENING)
+                roleManager?.isRoleHeld(android.app.role.RoleManager.ROLE_CALL_SCREENING) ?: true
             } else true
         )
     }
 
+    var isNotificationAccessGranted by remember {
+        mutableStateOf(
+            if (!isPreview) {
+                val contentResolver = context.contentResolver
+                val enabledListeners = android.provider.Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+                enabledListeners?.contains(context.packageName) ?: false
+            } else true
+        )
+    }
+
+
     // Refresh role status when app is resumed (e.g., coming back from Role request dialog)
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    val roleManager = context.getSystemService(android.app.role.RoleManager::class.java)
-                    isRoleHeld = roleManager.isRoleHeld(android.app.role.RoleManager.ROLE_CALL_SCREENING)
+    if (!isPreview) {
+        val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner) {
+            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        val roleManager = context.getSystemService(android.app.role.RoleManager::class.java)
+                        isRoleHeld = roleManager?.isRoleHeld(android.app.role.RoleManager.ROLE_CALL_SCREENING) ?: true
+                    }
+                    val enabledListeners = android.provider.Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+                    isNotificationAccessGranted = enabledListeners?.contains(context.packageName) ?: false
                 }
             }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+            }
         }
     }
 
@@ -133,7 +149,24 @@ fun DashboardScreen() {
             }
         }
 
-        // Service Status Card
+        // Notification Access Card
+        if (!isNotificationAccessGranted && !isPreview) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(text = "Notification Access Required", style = MaterialTheme.typography.titleMedium)
+                    Text(text = "Grant access to read messages aloud.", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(onClick = {
+                        context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+                    }) {
+                        Text("Open Settings")
+                    }
+                }
+            }
+        }
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = if (isServiceActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant

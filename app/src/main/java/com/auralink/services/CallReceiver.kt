@@ -15,6 +15,14 @@ class CallReceiver : BroadcastReceiver() {
                 val incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
                 Log.d("CallReceiver", "Incoming call detected: $incomingNumber")
                 
+                val sharedPrefs = context.getSharedPreferences("AuralinkPrefs", Context.MODE_PRIVATE)
+                val isDrivingMode = sharedPrefs.getBoolean("DRIVING_MODE", false)
+                val isAlwaysActive = sharedPrefs.getBoolean("ALWAYS_ACTIVE", false)
+                
+                if (!isDrivingMode && !isAlwaysActive) {
+                    return
+                }
+
                 // Trigger service to announce
                 val serviceIntent = Intent(context, AuralinkForegroundService::class.java).apply {
                     action = AuralinkForegroundService.ACTION_INCOMING_CALL

@@ -4,6 +4,8 @@ import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import java.util.Locale
+import android.media.AudioAttributes
+import android.os.Bundle
 
 class TTSManager(context: Context) : TextToSpeech.OnInitListener {
 
@@ -18,6 +20,7 @@ class TTSManager(context: Context) : TextToSpeech.OnInitListener {
             override fun onDone(utteranceId: String?) {
                 onCompletion?.invoke()
             }
+            @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) {
                 onCompletion?.invoke()
             }
@@ -31,6 +34,12 @@ class TTSManager(context: Context) : TextToSpeech.OnInitListener {
                 Log.e("TTSManager", "Language not supported")
             } else {
                 isInitialized = true
+                
+                val attrs = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                tts?.setAudioAttributes(attrs)
             }
         } else {
             Log.e("TTSManager", "Initialization failed")
@@ -42,8 +51,11 @@ class TTSManager(context: Context) : TextToSpeech.OnInitListener {
     }
 
     fun speak(text: String) {
+        Log.d("TTSManager", "Requesting speak: $text")
         if (isInitialized) {
-            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "CallAnnouncement")
+            val params = Bundle()
+            params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, android.media.AudioManager.STREAM_VOICE_CALL)
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "CallAnnouncement")
         } else {
             Log.e("TTSManager", "TTS not initialized")
         }

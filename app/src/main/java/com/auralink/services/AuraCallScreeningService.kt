@@ -11,6 +11,19 @@ class AuraCallScreeningService : CallScreeningService() {
         val phoneNumber = callDetails.handle?.schemeSpecificPart
         
         if (phoneNumber != null) {
+            val sharedPrefs = getSharedPreferences("AuralinkPrefs", android.content.Context.MODE_PRIVATE)
+            val isDrivingMode = sharedPrefs.getBoolean("DRIVING_MODE", false)
+            val isAlwaysActive = sharedPrefs.getBoolean("ALWAYS_ACTIVE", false)
+            
+            android.util.Log.d("AuraCallScreening", "Incoming call: $phoneNumber. Driving: $isDrivingMode, Always: $isAlwaysActive")
+
+            if (!isDrivingMode && !isAlwaysActive) {
+                android.util.Log.d("AuraCallScreening", "Skipping: Features disabled.")
+                // Feature is disabled, do not start service
+                respondToCall(callDetails, CallResponse.Builder().build())
+                return
+            }
+
             // Forward directly to the Foreground Service
             val intent = Intent(this, AuralinkForegroundService::class.java).apply {
                 action = AuralinkForegroundService.ACTION_INCOMING_CALL

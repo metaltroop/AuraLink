@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.content.IntentFilter
 import androidx.core.app.NotificationCompat
 import com.auralink.data.ContactRepository
 import kotlinx.coroutines.*
@@ -30,6 +31,29 @@ class AuralinkForegroundService : Service(), CoroutineScope {
         const val ACTION_STOP = "ACTION_STOP"
         const val ACTION_INCOMING_CALL = "ACTION_INCOMING_CALL"
         const val EXTRA_PHONE_NUMBER = "EXTRA_PHONE_NUMBER"
+        const val ACTION_ANNOUNCE_MESSAGE = "ACTION_ANNOUNCE_MESSAGE"
+        const val EXTRA_MESSAGE_TEXT = "EXTRA_MESSAGE_TEXT"
+    }
+
+    private val batteryReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED") {
+                val level = intent.getIntExtra("android.bluetooth.device.extra.BATTERY_LEVEL", -1)
+                
+                if (level != -1 && level <= 20) {
+                    val sharedPrefs = getSharedPreferences("AuralinkPrefs", Context.MODE_PRIVATE)
+                    val isBatteryAlertEnabled = sharedPrefs.getBoolean("BATTERY_ALERTS", false)
+                    val lastAlertTime = sharedPrefs.getLong("LAST_BATTERY_ALERT_TIME", 0)
+                    val currentTime = System.currentTimeMillis()
+                    
+                    // Alert only once every 30 minutes to avoid spamming
+                    if (isBatteryAlertEnabled && (currentTime - lastAlertTime > 30 * 60 * 1000)) {
+                        announceBatteryLow(level)
+                        sharedPrefs.edit().putLong("LAST_BATTERY_ALERT_TIME", currentTime).apply()
+                    }
+                }
+            }
+        }
     }
 
     override fun onCreate() {
@@ -45,16 +69,23 @@ class AuralinkForegroundService : Service(), CoroutineScope {
             audioRouter.restoreRingtone()
             audioRouter.disableBluetoothSCO()
         }
+
+        val filter = IntentFilter().apply {
+            addAction("android.bluetooth.device.action.BATTERY_LEVEL_CHANGED")
+        }
+        registerReceiver(batteryReceiver, filter)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action != ACTION_STOP) {
+            android.util.Log.d("AuralinkService", "Starting Foreground Service")
             startForegroundService()
         }
 
         when (intent?.action) {
             ACTION_STOP -> stopForegroundService()
             ACTION_INCOMING_CALL -> handleIncomingCall(intent.getStringExtra(EXTRA_PHONE_NUMBER))
+            ACTION_ANNOUNCE_MESSAGE -> handleMessageAnnouncement(intent.getStringExtra(EXTRA_MESSAGE_TEXT))
         }
         return START_STICKY
     }
@@ -94,14 +125,21 @@ class AuralinkForegroundService : Service(), CoroutineScope {
         // Logic: active if (Always Active) OR (Effective Driving Mode).
         val shouldAnnounce = isAlwaysActive || effectiveDrivingMode
 
+        android.util.Log.d("AuralinkService", "Handling Incoming Call. Driving: $effectiveDrivingMode, Always: $isAlwaysActive")
+
         if (!shouldAnnounce) {
             android.util.Log.d("AuralinkService", "Skipping: Neither Always Active nor Driving Mode is ON")
+            stopSelf()
             return
         }
 
         // Bluetooth check: only announce if headset is connected
-        if (!audioRouter.isBluetoothHeadsetConnected()) {
+        val isHeadsetConnected = audioRouter.isBluetoothHeadsetConnected()
+        android.util.Log.d("AuralinkService", "Bluetooth Headset Connected: $isHeadsetConnected")
+
+        if (!isHeadsetConnected) {
             android.util.Log.d("AuralinkService", "Skipping: Bluetooth headset not connected")
+            stopSelf()
             return
         }
 
@@ -128,6 +166,30 @@ class AuralinkForegroundService : Service(), CoroutineScope {
         }
     }
 
+    private fun announceBatteryLow(level: Int) {
+        if (!audioRouter.isBluetoothHeadsetConnected()) return
+        
+        launch {
+            audioRouter.muteRingtone()
+            audioRouter.enableBluetoothSCO()
+            delay(1200)
+            ttsManager.speak("Warning: Your earbuds battery is at $level percent.")
+        }
+    }
+
+    private fun handleMessageAnnouncement(message: String?) {
+        if (message == null) return
+
+        if (!audioRouter.isBluetoothHeadsetConnected()) return
+
+        launch {
+            audioRouter.muteRingtone() // Reusing ringtone mute for notification ducking
+            audioRouter.enableBluetoothSCO()
+            delay(1200)
+            ttsManager.speak(message)
+        }
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
@@ -151,6 +213,7 @@ class AuralinkForegroundService : Service(), CoroutineScope {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        unregisterReceiver(batteryReceiver)
         job.cancel()
         ttsManager.shutdown()
         audioRouter.disableBluetoothSCO()
